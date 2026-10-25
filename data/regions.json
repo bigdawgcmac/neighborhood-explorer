@@ -1,0 +1,123 @@
+{
+ "regions": {
+  "ct": {
+   "id": "ct",
+   "name": "Connecticut",
+   "states": [
+    "Connecticut"
+   ],
+   "view": [
+    -73.7278,
+    40.9801,
+    -71.787,
+    42.0506
+   ],
+   "bounds": [
+    -73.7278,
+    40.9801,
+    -71.787,
+    42.0506
+   ],
+   "people": 3624508,
+   "tracts": 879
+  },
+  "dmv": {
+   "id": "dmv",
+   "name": "DC \u00b7 Maryland \u00b7 Virginia",
+   "states": [
+    "DC",
+    "Maryland",
+    "Virginia"
+   ],
+   "view": [
+    -77.55,
+    38.62,
+    -76.85,
+    39.08
+   ],
+   "bounds": [
+    -83.6754,
+    36.5407,
+    -75.0489,
+    39.723
+   ],
+   "people": 15592475,
+   "tracts": 3856
+  },
+  "nc": {
+   "id": "nc",
+   "name": "North Carolina",
+   "states": [
+    "North Carolina"
+   ],
+   "view": [
+    -84.3219,
+    33.8423,
+    -75.4606,
+    36.5881
+   ],
+   "bounds": [
+    -84.3219,
+    33.8423,
+    -75.4606,
+    36.5881
+   ],
+   "people": 10730404,
+   "tracts": 2660
+  },
+  "fl": {
+   "id": "fl",
+   "name": "Florida",
+   "states": [
+    "Florida"
+   ],
+   "view": [
+    -87.6349,
+    24.5213,
+    -80.0314,
+    31.0009
+   ],
+   "bounds": [
+    -87.6349,
+    24.5213,
+    -80.0314,
+    31.0009
+   ],
+   "people": 22416077,
+   "tracts": 5122
+  },
+  "nj": {
+   "id": "nj",
+   "name": "New Jersey",
+   "states": [
+    "New Jersey"
+   ],
+   "view": [
+    -75.5595,
+    38.9285,
+    -73.8936,
+    41.3574
+   ],
+   "bounds": [
+    -75.5595,
+    38.9285,
+    -73.8936,
+    41.3574
+   ],
+   "people": 9343809,
+   "tracts": 2175
+  }
+ },
+ "order": [
+  "dmv",
+  "nc",
+  "fl",
+  "nj",
+  "ct"
+ ],
+ "acs": "2020\u201324",
+ "zhvi_date": "2026-09-30",
+ "zori_date": "2026-09-30",
+ "dots_detail": 2,
+ "dots_overview": 25
+}

@@ -1,0 +1,7 @@
+pandas>=3.0
+numpy>=2.0
+requests>=2.30
+geopandas>=1.0
+pyogrio>=0.10
+shapely>=2.0
+pyproj>=3.6

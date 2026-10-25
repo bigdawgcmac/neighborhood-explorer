@@ -1,0 +1,5 @@
+# old preview, editor/app settings, Python caches
+demo/
+.claude/
+__pycache__/
+*.pyc

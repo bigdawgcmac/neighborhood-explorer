@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neighborhood explorer</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+<link rel="stylesheet" href="style.css?v=3">
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9/dist.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="kicker">Neighborhood explorer</div>
+    <h1>What each neighborhood looks like, <span>by census tract</span></h1>
+  </div>
+  <nav id="tabs"></nav>
+</header>
+<main>
+  <aside id="left">
+    <div class="search">
+      <input id="q" placeholder="Search a city, town, neighborhood, ZIP or address" autocomplete="off">
+      <div class="results" id="results"></div>
+    </div>
+    <div class="block">
+      <h4>Map</h4>
+      <div class="seg2" id="basemap"><button data-b="streets" class="active">Streets</button><button data-b="satellite">Satellite</button></div>
+      <label class="opacity">Data opacity <input type="range" id="opacity" min="10" max="100" step="5"></label>
+    </div>
+    <div class="block layers">
+      <h4>Show</h4>
+      <button data-m="none">None (map only)</button>
+      <button data-m="race" class="active">Race and ethnicity</button>
+      <button data-m="income">Household income</button>
+      <button data-m="homeval">Home value</button>
+      <div class="seg" data-for="homeval">Source: <button data-s="census" class="active">Census tract</button><button data-s="zillow">Zillow ZIP</button></div>
+      <button data-m="rent">Rent</button>
+      <div class="seg" data-for="rent">Source: <button data-s="census" class="active">Census tract</button><button data-s="zillow">Zillow ZIP</button></div>
+      <button data-m="vote">2024 presidential vote</button>
+    </div>
+    <div class="block">
+      <div class="ex-title" id="exTitle"></div>
+      <div class="takeaway" id="takeaway"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="block">
+      <h4>Pins <span class="count" id="pinCount"></span></h4>
+      <button class="link" id="pinMode">+ Drop a pin</button><span class="hint"> or right-click the map</span>
+      <div id="pinList"></div>
+    </div>
+    <div class="foot">
+      <p id="note"></p>
+      <p>Source: US Census Bureau (ACS 2020–24 5-year; 2020 Census P.L. 94-171); Zillow ZHVI and ZORI; Harvard Dataverse, "Reallocating U.S. Election Results (2016–2024) from Precincts to Census Geographies"; OpenStreetMap neighborhood names; Esri World Imagery</p>
+      <p class="label">Neighborhood explorer · Personal project</p>
+    </div>
+  </aside>
+  <div id="map">
+    <div class="banner" id="banner"></div>
+    <div class="loading" id="loading"></div>
+  </div>
+  <aside id="right"></aside>
+</main>
+<script src="app.js?v=5"></script>
+</body>
+</html>
