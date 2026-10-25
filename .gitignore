@@ -3,3 +3,4 @@ demo/
 .claude/
 __pycache__/
 *.pyc
+.playwright-mcp/

@@ -119,12 +119,9 @@ map.on('load', async () => {
   map.addLayer({ id: 'tract-hit', type: 'fill', source: 'tracts', paint: { 'fill-color': '#000', 'fill-opacity': 0 } }, firstSymbol);
   map.addLayer({ id: 'tract-line', type: 'line', source: 'tracts', minzoom: 9, paint: { 'line-color': '#ffffff', 'line-width': 0.5 } }, firstSymbol);
   map.addLayer({ id: 'zip-line', type: 'line', source: 'zips', paint: { 'line-color': '#ffffff', 'line-width': 1 } }, firstSymbol);
-  // state lines on multi-state tabs: solid red over a thin white edge so they read on streets and satellite
-  const borderWidth = ['interpolate', ['linear'], ['zoom'], 5, 1.6, 10, 2.6, 14, 3.6];
-  map.addLayer({ id: 'border-casing', type: 'line', source: 'borders', layout: { 'line-join': 'round', 'line-cap': 'round' },
-                 paint: { 'line-color': '#ffffff', 'line-opacity': 0.85, 'line-width': ['+', borderWidth, 2] } });
+  // state lines on multi-state tabs: solid red so they read on streets and satellite
   map.addLayer({ id: 'border-line', type: 'line', source: 'borders', layout: { 'line-join': 'round', 'line-cap': 'round' },
-                 paint: { 'line-color': '#e3120b', 'line-width': borderWidth } });
+                 paint: { 'line-color': '#e3120b', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.6, 10, 2.6, 14, 3.6] } });
   map.addLayer({ id: 'hover', type: 'line', source: 'tracts', filter: ['==', ['get', 'id'], ''], paint: { 'line-color': '#000', 'line-width': 1.5 } });
   map.addLayer({ id: 'sel-line', type: 'line', source: 'sel', paint: {
     'line-color': ['match', ['get', 'role'], 'A', '#2251ff', '#000'], 'line-width': 3,
