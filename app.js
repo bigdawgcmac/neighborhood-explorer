@@ -26,6 +26,7 @@ const QUICK = {
   fl:  { compare: ['Miami, FL', 'Tampa, FL'], go: ['Orlando, FL', 'Jacksonville, FL', 'Miami Beach, FL'] },
   nj:  { compare: ['Hoboken, NJ', 'Jersey City, NJ'], go: ['Princeton, NJ', 'Newark, NJ', 'Montclair, NJ'] },
   ct:  { compare: ['Greenwich, CT', 'New Haven, CT'], go: ['Stamford, CT', 'Hartford, CT', 'Westport, CT'] },
+  ny:  { compare: ['Brooklyn, NY', 'Manhattan, NY'], go: ['Buffalo, NY', 'Albany, NY', 'Rochester, NY', 'Scarsdale, NY'] },
 };
 
 // ---------- formatting ----------
@@ -291,7 +292,8 @@ function takeaway() {
     const id = layer === 'zip-fill' ? f.properties.zip : f.properties.id;
     if (seen.has(id)) continue;
     seen.add(id);
-    props.push(layer === 'zip-fill' ? R.zipById.get(id).properties : R.tractById.get(id).properties);
+    const feat = (layer === 'zip-fill' ? R.zipById : R.tractById).get(id);
+    if (feat) props.push(feat.properties);  // skip shapes left over from the previous tab
   }
   let html = '';
   if (!props.length) html = 'Zoom or pan to an area with data';
@@ -322,8 +324,8 @@ function wireMapEvents() {
   map.on('mousemove', e => {
     if (!R) return;
     const key = layerKey(), L = LAYERS[key];
-    const zf = L.src === 'zips' ? map.queryRenderedFeatures(e.point, { layers: ['zip-fill'] })[0] : null;
-    const tf = map.queryRenderedFeatures(e.point, { layers: ['tract-hit'] })[0];
+    const zf = L.src === 'zips' ? map.queryRenderedFeatures(e.point, { layers: ['zip-fill'] }).find(f => R.zipById.has(f.properties.zip)) : null;
+    const tf = map.queryRenderedFeatures(e.point, { layers: ['tract-hit'] }).find(f => R.tractById.has(f.properties.id));
     map.getCanvas().style.cursor = state.pinMode ? 'crosshair' : tf ? 'pointer' : '';
     map.setFilter('hover', ['==', ['get', 'id'], tf ? tf.properties.id : '']);
     if (!tf && !zf) return popup.remove();
@@ -340,10 +342,10 @@ function wireMapEvents() {
   });
   map.on('mouseout', () => popup.remove());
   map.on('click', e => {
-    if (e.originalEvent.target.closest?.('.pin, .tag')) return;  // marker clicks are handled by the marker
+    if (e.originalEvent.target.closest?.('.pin, .tag, .search-pin')) return;  // marker clicks are handled by the marker
     if (state.pinMode) { setPinMode(false); return addPin(e.lngLat); }
     const f = map.queryRenderedFeatures(e.point, { layers: ['tract-hit'] })[0];
-    if (f) select(tractEntity(f.properties.id));
+    if (f && R.tractById.has(f.properties.id)) select(tractEntity(f.properties.id));
   });
   map.on('contextmenu', e => { e.originalEvent.preventDefault(); addPin(e.lngLat); });
   map.on('zoom', () => setDots(dotLayers.map(l => l.clone({ radiusScale: dotRadius(map.getZoom()) }))));
@@ -362,9 +364,10 @@ function placeEntity(f) {
   const p = f.properties, typ = p.type === 'CDP' ? 'Census-designated place' : p.type[0].toUpperCase() + p.type.slice(1);
   return { kind: 'place', id: p.id, p, geom: f.geometry, title: p.name, sub: `${typ} totals`, county: null, town: null, zip: null, ct: p.name.endsWith('CT') };
 }
-function findEntity(name) {  // prefer towns, then counties/cities, then other places
+function findEntity(name) {  // prefer towns, then counties/cities, then other places; same kind: the bigger one
   const rank = f => f.properties.id[0] === 's' ? 0 : f.properties.id[0] === 'c' ? 1 : f.properties.type === 'CDP' ? 3 : 2;
-  return R.places.features.filter(f => f.properties.name === name).sort((a, b) => rank(a) - rank(b))[0];
+  return R.places.features.filter(f => f.properties.name === name)
+    .sort((a, b) => rank(a) - rank(b) || (b.properties.pop || 0) - (a.properties.pop || 0))[0];
 }
 
 // ---------- selection + right panel ----------
@@ -387,7 +390,8 @@ function render() {
     if (!e) continue;
     feats.push({ type: 'Feature', properties: { role }, geometry: e.geom });
     const el = document.createElement('div'); el.className = 'tag ' + role.toLowerCase(); el.textContent = role;
-    markers.push(new maplibregl.Marker({ element: el }).setLngLat(centerOf(e.geom)).addTo(map));
+    const opts = e.point ? { element: el, anchor: 'top-left', offset: [6, 2] } : { element: el };  // beside an address pin
+    markers.push(new maplibregl.Marker(opts).setLngLat(e.point || centerOf(e.geom)).addTo(map));
   }
   if (ready) map.getSource('sel').setData({ type: 'FeatureCollection', features: feats });
   $('right').innerHTML = !state.A ? startHTML() : state.B ? compareHTML(state.A, state.B) : singleHTML(state.A);
@@ -421,6 +425,7 @@ function singleHTML(e) {
     <h2>${e.title}</h2>
     <div class="sub">${e.sub} · Population <b>${num(p.pop)}</b>${z ? ` · ZIP ${z.zip}` : ''}</div>
     <div class="actions"><button class="link" data-act="compare">+ Compare with another area</button>${links}</div>
+    ${!p.pop ? `<div class="note">Almost no one lives in this tract (often a park, campus or airport), so most stats are n/a. Try the ${[e.town, e.county].filter(Boolean).map(x => shortName(x.name)).join(' or ') || 'surrounding area'} totals above.</div>` : ''}
     <section><h4>Race and ethnicity, <span>% of residents</span></h4>${raceBars(p)}</section>
     <section><h4>Household income, <span>median</span></h4><div class="big">${fmtV('income', p.income)}</div>${vsRef(e, 'income')}</section>
     <section><h4>Home value</h4>
@@ -479,15 +484,31 @@ $('right').addEventListener('click', ev => {
   else if (t.dataset.act === 'clearB') { state.B = null; state.picking = false; render(); }
 });
 const fly = e => map.fitBounds(lngLatBounds(bboxOf(e.geom)), { padding: 40, maxZoom: 15 });
-function goPoint(lon, lat, name, zoom = 14.3) {
+// fly to a point and show the tract under it; exact = an address (its A/B tag sits on the spot, not the tract center)
+function goPoint(lon, lat, name, zoom = 14.3, exact = false, after = null) {
   map.flyTo({ center: [lon, lat], zoom });
   map.once('moveend', () => {
-    const f = map.queryRenderedFeatures(map.project([lon, lat]), { layers: ['tract-hit'] })[0];
+    after?.();
+    const f = map.queryRenderedFeatures(map.project([lon, lat]), { layers: ['tract-hit'] }).find(f => R.tractById.has(f.properties.id));
     if (!f) return;
     const e = tractEntity(f.properties.id);
     if (name && name !== e.title) { e.sub = `${e.title} · ${e.sub}`; e.title = name; }
+    if (exact) e.point = [lon, lat];
     select(e);
   });
+}
+
+// which tab holds a point: the geocoder's state if known, else the current tab, else any tab whose extent contains it
+const STATE_NAMES = { VA: 'Virginia', MD: 'Maryland', DC: 'DC', 'District of Columbia': 'DC', NC: 'North Carolina',
+  FL: 'Florida', NJ: 'New Jersey', CT: 'Connecticut', NY: 'New York' };
+function regionFor(lon, lat, state) {
+  if (!META) return null;
+  const ids = META.order.filter(id => META.regions[id]);
+  const st = state && (STATE_NAMES[state] || state);
+  const byState = st && ids.find(id => META.regions[id].states.includes(st));
+  if (byState) return byState;
+  const inside = id => { const [x0, y0, x1, y1] = META.regions[id].bounds; return lon >= x0 && lon <= x1 && lat >= y0 && lat <= y1; };
+  return R && inside(R.id) ? R.id : ids.find(inside) || null;
 }
 
 // ---------- left panel ----------
@@ -511,14 +532,46 @@ function searchIndex(s) {
     .map(({ n }) => ({ label: n[0], hint: n[1] ? `Neighborhood · ${n[1]}` : 'Neighborhood', kind: 'place', lon: n[2], lat: n[3] }));
   return [...areas, ...nbs].slice(0, 9);
 }
-q.addEventListener('input', () => {
-  const s = q.value.trim().toLowerCase();
-  hits = s && R ? searchIndex(s) : [];
-  if (s) hits.push({ label: `Search address “${q.value.trim()}”`, hint: 'OpenStreetMap', kind: 'geocode', text: q.value.trim() });
-  res.innerHTML = hits.map((h, i) => `<div data-i="${i}" class="${i ? '' : 'hi'}">${h.label}<span>${h.hint}</span></div>`).join('');
+// address and landmark suggestions as you type (Photon, OpenStreetMap data); Nominatim is the fallback on Enter
+const looksLikeAddress = s => /^\d/.test(s) || /\b\d{5}\b/.test(s);
+let geoHits = [], geoFor = '', geoTimer, geoSeq = 0;
+function photonHit(f) {
+  const p = f.properties;
+  const label = p.housenumber ? `${p.housenumber} ${p.street || ''}`.trim() : (p.name || p.street || '');
+  const hint = [p.city || p.district || p.county, p.state].filter(Boolean).join(', ');
+  return { label, hint, kind: 'address', lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], state: p.state };
+}
+const photonUrl = (text, n) => { const c = map.getCenter();
+  return `https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=${n}&lang=en&lat=${c.lat.toFixed(4)}&lon=${c.lng.toFixed(4)}`; };
+async function suggest(text, seq) {
+  try {
+    const r = await (await fetch(photonUrl(text, 8))).json();
+    if (seq !== geoSeq) return;  // a newer keystroke already went out
+    geoHits = r.features.filter(f => f.properties.countrycode === 'US').map(photonHit).filter(h => h.label).slice(0, 5);
+    geoFor = text;
+    showHits();
+  } catch { /* offline: local results and Enter still work */ }
+}
+function showHits() {
+  const text = q.value.trim(), s = text.toLowerCase();
+  const local = s && R ? searchIndex(s) : [];
+  const geo = geoFor === text ? geoHits : [];
+  hits = (looksLikeAddress(text) ? [...geo, ...local] : [...local, ...geo]).slice(0, 10);
+  if (s) hits.push({ label: `Search “${text}”`, hint: 'Find this address', kind: 'geocode', text });
+  res.innerHTML = hits.map((h, i) => `<div data-i="${i}" class="${i ? '' : 'hi'}">${esc(h.label)}<span>${esc(h.hint)}</span></div>`).join('');
   res.style.display = hits.length ? 'block' : 'none';
+}
+q.addEventListener('input', () => {
+  showHits();
+  const text = q.value.trim(), seq = ++geoSeq;
+  clearTimeout(geoTimer);
+  if (text.length >= 3) geoTimer = setTimeout(() => suggest(text, seq), 250);
 });
-q.addEventListener('keydown', ev => { if (ev.key === 'Enter' && hits.length) choose(hits[0]); });
+q.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !hits.length) return;
+  const text = q.value.trim();  // an address typed faster than suggestions arrive: look it up directly
+  choose(looksLikeAddress(text) && geoFor !== text ? { kind: 'geocode', text } : hits[0]);
+});
 res.addEventListener('click', ev => { const d = ev.target.closest('[data-i]'); if (d) choose(hits[+d.dataset.i]); });
 document.addEventListener('click', ev => { if (!ev.target.closest('.search')) res.style.display = 'none'; });
 
@@ -531,14 +584,51 @@ async function choose(h) {
     goPoint(c[0], c[1], h.label, Math.max(map.getZoom(), 12));
   } else if (h.kind === 'area') { const e = placeEntity(R.placeById.get(h.id)); select(e); fly(e); }
   else if (h.kind === 'place') goPoint(h.lon, h.lat, h.label);
+  else if (h.kind === 'address') showAddress(h);
   else {
-    const [x0, y0, x1, y1] = R.meta.bounds;
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&viewbox=${x0},${y1},${x1},${y0}&bounded=1&q=${encodeURIComponent(h.text)}`;
-    try {
-      const r = await (await fetch(url)).json();
-      if (r[0]) goPoint(+r[0].lon, +r[0].lat, h.text.split(',')[0]); else q.value = `No match in ${R.meta.name}`;
-    } catch { q.value = 'Address search unavailable'; }
+    const found = await geocode(h.text);
+    if (found) { q.value = found.label; showAddress(found); } else q.value = `No match for “${h.text}”`;
   }
+}
+async function geocode(text) {
+  try {
+    const r = await (await fetch(photonUrl(text, 5))).json();
+    const f = r.features.find(f => f.properties.countrycode === 'US');
+    if (f) return photonHit(f);
+  } catch { /* try Nominatim */ }
+  try {
+    const r = await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&addressdetails=1&q=${encodeURIComponent(text)}`)).json();
+    if (!r[0]) return null;
+    const a = r[0].address || {};
+    return { label: a.house_number ? `${a.house_number} ${a.road || ''}`.trim() : (r[0].name || text),
+             hint: [a.city || a.town || a.village || a.hamlet || a.county, a.state].filter(Boolean).join(', '),
+             kind: 'address', lon: +r[0].lon, lat: +r[0].lat, state: a.state };
+  } catch { return null; }
+}
+
+// red map pin on the exact address, like Google/Apple Maps
+let searchMarker = null;
+function clearSearchMarker() { searchMarker?.remove(); searchMarker = null; }
+async function showAddress(h) {
+  const rid = regionFor(h.lon, h.lat, h.state);
+  if (rid && rid !== R?.id) await showRegion(rid);
+  clearSearchMarker();
+  const el = document.createElement('div');
+  el.className = 'search-pin';
+  el.innerHTML = '<svg width="28" height="38" viewBox="0 0 28 38"><path d="M14 1C6.8 1 1.5 6.5 1.5 13.4 1.5 22.6 14 37 14 37s12.5-14.4 12.5-23.6C26.5 6.5 21.2 1 14 1z" fill="#e3120b" stroke="#fff" stroke-width="2"/><circle cx="14" cy="13.5" r="4.6" fill="#fff"/></svg>';
+  const box = document.createElement('div');
+  box.className = 'pin-pop';
+  box.innerHTML = `<b>${esc(h.label)}</b><div class="note">${esc(h.hint || '')}</div>
+    <div class="actions"><button class="link" data-a="save">Save as pin</button><button class="link" data-a="clear">Clear</button></div>`;
+  box.addEventListener('click', ev => {
+    const a = ev.target.closest('[data-a]')?.dataset.a;
+    if (a === 'save') { clearSearchMarker(); addPin({ lng: h.lon, lat: h.lat }, h.label); }
+    if (a === 'clear') clearSearchMarker();
+  });
+  searchMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([h.lon, h.lat])
+    .setPopup(new maplibregl.Popup({ offset: [0, -38], maxWidth: '260px' }).setDOMContent(box)).addTo(map);
+  const marker = searchMarker;
+  goPoint(h.lon, h.lat, h.label, 17, true, () => { if (marker === searchMarker && !marker.getPopup().isOpen()) marker.togglePopup(); });
 }
 
 // ---------- basemap: streets or satellite ----------
@@ -573,8 +663,8 @@ function setPinMode(on) {
   map.getCanvas().style.cursor = on ? 'crosshair' : '';
   updateBanner();
 }
-function addPin(ll) {
-  const p = { id: Date.now().toString(36), name: `Pin ${pins.length + 1}`, lon: +ll.lng.toFixed(6), lat: +ll.lat.toFixed(6) };
+function addPin(ll, name) {
+  const p = { id: Date.now().toString(36), name: name || `Pin ${pins.length + 1}`, lon: +ll.lng.toFixed(6), lat: +ll.lat.toFixed(6) };
   pins.push(p);
   savePins(); renderPins(); openPin(p, true);
 }
@@ -626,8 +716,7 @@ $('pinList').addEventListener('click', async ev => {
   const a = ev.target.closest('[data-pin]');
   if (!a) return;
   const p = pins.find(x => x.id === a.dataset.pin);
-  const inside = ([x0, y0, x1, y1]) => p.lon >= x0 && p.lon <= x1 && p.lat >= y0 && p.lat <= y1;
-  const rid = META?.order.find(id => META.regions[id] && inside(META.regions[id].bounds));
+  const rid = regionFor(p.lon, p.lat);
   if (rid && rid !== R?.id) await showRegion(rid);
   map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 14) });
   openPin(p);

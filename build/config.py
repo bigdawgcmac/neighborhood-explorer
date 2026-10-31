@@ -9,6 +9,7 @@ STATES = {
     "12": ("fl", "Florida", "Florida"),
     "34": ("nj", "New_Jersey", "New Jersey"),
     "09": ("ct", "Connecticut", "Connecticut"),
+    "36": ("ny", "New_York", "New York"),
 }
 
 # one map tab per region; "view" is the opening map extent [west, south, east, north]
@@ -18,6 +19,7 @@ REGIONS = {
     "fl":  {"name": "Florida", "states": ["12"], "view": None},
     "nj":  {"name": "New Jersey", "states": ["34"], "view": None},
     "ct":  {"name": "Connecticut", "states": ["09"], "view": None},
+    "ny":  {"name": "New York", "states": ["36"], "view": None},
 }
 
 DOTS_PER_PERSON_DETAIL = 2     # street-level dots: 1 dot = 2 people

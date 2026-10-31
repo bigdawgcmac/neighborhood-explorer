@@ -105,3 +105,6 @@ section h4 span { font-weight:normal; color:var(--gray); }
 .loading { position:absolute; z-index:3; bottom:34px; left:12px; background:#fff; border:1px solid var(--rule); font-size:12px; padding:6px 10px; display:none; }
 .maplibregl-popup-content { font-family:Arial, sans-serif; font-size:12px; padding:6px 9px; border-radius:0; box-shadow:none; border:1px solid var(--rule); }
 .maplibregl-popup-tip { display:none; }
+
+.search-pin { cursor:pointer; line-height:0; }
+.pin-pop b { font-size:13px; }

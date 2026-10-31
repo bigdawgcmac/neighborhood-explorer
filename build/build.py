@@ -16,7 +16,9 @@ from config import STATES, REGIONS, DOTS_PER_PERSON_DETAIL, DOTS_PER_PERSON_OVER
 RAW, OUT = sys.argv[1], sys.argv[2]
 ONLY = sys.argv[3:] or list(REGIONS)
 OUR = set(STATES)
-TOWN_STATES = {"09", "34"}  # towns/townships (county subdivisions) are the real local governments here
+TOWN_STATES = {"09", "34", "36"}  # towns/townships/boroughs (county subdivisions) are searchable areas here
+LABEL_BY_TOWN = {"09", "34"}       # label tracts by town; elsewhere by city/village/CDP
+NYC_PLACE = "51000"                 # New York city is one "place"; its tracts are labeled by borough instead
 VOTES = ["votes_dem", "votes_rep", "votes_total"]
 FIELDS = ["pop", "white", "black", "hispanic", "asian", "other", "income", "homeval", "rent", "margin", "dem", "rep", "votes_total"]
 rng = np.random.default_rng(SEED)
@@ -216,9 +218,13 @@ def build_state(st, rid, S, V, BGV, OSM, manifest, overview):
     votes = pd.concat([V, pv, sv])
 
     # tract label: OSM neighborhood inside the tract, else majority town/place, else county
-    unit_id = town_id if st in TOWN_STATES else st + b.place
-    unit_ok = has_town if st in TOWN_STATES else has_place
-    unit_names = (dict(zip(cousubs.GEOID, cousubs.NAME)) if st in TOWN_STATES else dict(zip(places.GEOID, places.NAME)))
+    if st in LABEL_BY_TOWN:
+        unit_id, unit_ok = town_id, has_town
+    else:
+        nyc = (b.place == NYC_PLACE) if st == "36" else pd.Series(False, index=b.index)
+        unit_id = (st + b.place).where(~nyc, town_id)
+        unit_ok = has_place | (nyc & has_town)
+    unit_names = {**dict(zip(places.GEOID, places.NAME)), **dict(zip(cousubs.GEOID, cousubs.NAME))}
     maj = (pd.DataFrame({"t": b.tract11[unit_ok], "u": unit_id[unit_ok], "p": b.P1_001[unit_ok]})
            .groupby(["t", "u"]).p.sum().reset_index().sort_values("p").drop_duplicates("t", keep="last"))
     town_of = dict(zip(maj.t, maj.u.map(unit_names)))
@@ -232,6 +238,12 @@ def build_state(st, rid, S, V, BGV, OSM, manifest, overview):
         j["d"] = [p.distance(rp[g]) for p, g in zip(j.geometry, j.GEOID)]
         best = j.sort_values("d").drop_duplicates("GEOID")
         nb_of = dict(zip(best.GEOID, best.name))
+        # city tracts are often too small to hold a neighborhood point: use the nearest one within 1 km
+        rest = tracts[~tracts.GEOID.isin(nb_of)]
+        near = gpd.sjoin_nearest(gpd.GeoDataFrame(rest[["GEOID"]], geometry=rest.rep, crs=4326).to_crs(5070),
+                                 nb.to_crs(5070), max_distance=1000, distance_col="d")
+        near = near.sort_values("d").drop_duplicates("GEOID")
+        nb_of.update(zip(near.GEOID, near.name))
         nb_rows = list(zip(j.name, j.geometry.x, j.geometry.y, j.GEOID))
 
     zj = gpd.sjoin(gpd.GeoDataFrame(tracts[["GEOID"]], geometry=tracts.rep, crs=4326), ZCTA[["zip", "geometry"]], predicate="within")
